@@ -1,11 +1,9 @@
 import socket
 import threading
 import re
-import random
 from typing import List, Callable
 
-from server import BaseHandler
-from config import MAFIA_CONFIG
+from .server import BaseHandler
 
 
 class State:
@@ -176,32 +174,35 @@ class User:
             return True
 
 
+users: List[User] = []
+active_users: List[User] = []
+
+
 class SarPanel(BaseHandler):
-    def __init__(self, config: dict):
-        self.current_state = State.START
+    def __init__(self, config: dict = None):
+        self.current_state = State.INIT
         self.ready = False
-        self.users: List[User] = []
         self.next_id = 1
         self.killed_player_id = None
         self.lock = threading.Lock()
-        self.active_players = []
         self.finished = False
+        self.config = config if config else {}
 
     def _get_user(self, user_id: int):
-        for user in self.users:
+        for user in users:
             if user.id == user_id:
                 return user
         return None
 
     def _get_admin(self):
-        for user in self.users:
+        for user in users:
             if user.role == ADMIN:
                 return user
         return None
 
     def _get_player_by_role(self, role: Role):
         players = []
-        for player in self.active_players:
+        for player in active_users:
             if player.role == role:
                 players.append(player)
         return players
@@ -212,13 +213,13 @@ class SarPanel(BaseHandler):
 
     def _add_user(self, user):
         if self.is_sar_ready():
-            self.users.append(user)
-            self.active_players.append(user)
+            users.append(user)
+            active_users.append(user)
             user.role = ROLES_DICT[RoleNames.NORMAL]
             user.send_message("Connected to SAR Server!")
-        elif not self.users:
-            self.users.append(user)
-            self.active_players.append(user)
+        elif not users:
+            users.append(user)
+            active_users.append(user)
             user.role = ROLES_DICT[RoleNames.ADMIN]
             user.send_message("Connected, You are admin!")
         else:
@@ -247,7 +248,7 @@ class SarPanel(BaseHandler):
                 self.remove_user(user)
 
     def remove_user(self, user):
-        self.users.remove(user)
+        users.remove(user)
 
     def back(self, **kwargs):
         pass
@@ -274,9 +275,9 @@ class SarPanel(BaseHandler):
     def inform_all(self, message, ignore_list=None):
         if not ignore_list:
             ignore_list = []
-        for user in self.users:
+        for user in users:
             if user.id not in ignore_list:
                 user.send_message(message)
 
 
-sar_panel = SarPanel(config=MAFIA_CONFIG)
+sar_panel = SarPanel()

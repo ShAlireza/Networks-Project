@@ -7,23 +7,35 @@ from .server import BaseHandler
 
 
 class State:
-    INIT = -1
-    MAIN_MENU = 0
-    EXTERNAL_SERVERS = 1
-    ADMIN_MENU = 2
+    INIT = "INIT", "Init Connection"
+    MAIN_MENU = ("MAIN_MENU",
+                 "1) Connect to external servers\n2) Login as admin")
+    EXTERNAL_SERVERS = ("EXTERNAL_SERVERS",
+                        "1) shalgham\n2) choghondar")
 
-    ACTIVE_STATES = [MAIN_MENU, EXTERNAL_SERVERS, ADMIN_MENU]
+    ADMIN_ASK_PASSWORD = ("ADMIN_ASK_PASSWORD",
+                          "Please enter you password")
+    ADMIN_MENU = ("ADMIN_MENU",
+                  "You can config firewall")
 
-    def prev(self, state):
-        if state in [self.EXTERNAL_SERVERS, self.ADMIN_MENU]:
-            return self.MAIN_MENU
-        return self.MAIN_MENU
+    ACTIVE_STATES = [MAIN_MENU, EXTERNAL_SERVERS,
+                     ADMIN_ASK_PASSWORD, ADMIN_MENU]
+
+    @staticmethod
+    def prev(state):
+        if state in [State.EXTERNAL_SERVERS,
+                     State.ADMIN_ASK_PASSWORD, State.ADMIN_MENU]:
+            return State.MAIN_MENU
+        return State.MAIN_MENU
+
+    @staticmethod
+    def state_string(state):
+        return f"\t\t{state[0]}\n\n{state[1]}"
 
 
 class RoleNames:
     ADMIN = 'ADMIN'
     NORMAL = 'NORMAL'
-
     LIST = (ADMIN, NORMAL)
 
 
@@ -94,11 +106,11 @@ STATUS = Action(
     ]
 )
 
-SET_PASSWORD = Action(
-    pattern=r'set password (?P<password>.+)',
-    handler=lambda password, panel, **kwargs: panel.set_password(
+PASSWORD = Action(
+    pattern=r'password (?P<password>.+)',
+    handler=lambda password, panel, **kwargs: panel.password(
         password, **kwargs),
-    valid_states=[State.INIT]
+    valid_states=[State.INIT, State.ADMIN_ASK_PASSWORD]
 )
 
 
@@ -112,7 +124,7 @@ class Role:
 ADMIN = Role(
     name=RoleNames.ADMIN,
     actions=[
-        STATUS, BACK, SELECT, SET_PASSWORD,
+        STATUS, BACK, SELECT, PASSWORD,
         SET_FIREWALL_KIND, OPEN_PORT, CLOSE_PORT
     ]
 )
@@ -174,35 +186,38 @@ class User:
             return True
 
 
-users: List[User] = []
-active_users: List[User] = []
+class GlobalVariables:
+    users: List[User] = []
+    active_users: List[User] = []
+    next_id = 1
+    lock = threading.Lock()
+    admin_password = None
 
 
 class SarPanel(BaseHandler):
     def __init__(self, config: dict = None):
         self.current_state = State.INIT
         self.ready = False
-        self.next_id = 1
         self.killed_player_id = None
-        self.lock = threading.Lock()
         self.finished = False
         self.config = config if config else {}
+        self.user = None
 
-    def _get_user(self, user_id: int):
-        for user in users:
+    def _get_user(self, user_id: int) -> User:
+        for user in GlobalVariables.users:
             if user.id == user_id:
                 return user
         return None
 
-    def _get_admin(self):
-        for user in users:
+    def _get_admin(self) -> User:
+        for user in GlobalVariables.users:
             if user.role == ADMIN:
                 return user
         return None
 
     def _get_player_by_role(self, role: Role):
         players = []
-        for player in active_users:
+        for player in GlobalVariables.active_users:
             if player.role == role:
                 players.append(player)
         return players
@@ -213,13 +228,15 @@ class SarPanel(BaseHandler):
 
     def _add_user(self, user):
         if self.is_sar_ready():
-            users.append(user)
-            active_users.append(user)
+            GlobalVariables.users.append(user)
+            GlobalVariables.active_users.append(user)
             user.role = ROLES_DICT[RoleNames.NORMAL]
             user.send_message("Connected to SAR Server!")
-        elif not users:
-            users.append(user)
-            active_users.append(user)
+            self.current_state = State.MAIN_MENU
+
+        elif not GlobalVariables.users:
+            GlobalVariables.users.append(user)
+            GlobalVariables.active_users.append(user)
             user.role = ROLES_DICT[RoleNames.ADMIN]
             user.send_message("Connected, You are admin!")
         else:
@@ -227,13 +244,23 @@ class SarPanel(BaseHandler):
             user.socket.close()
 
     def handle(self, client: socket.socket, *args, **kwargs):
-        user = User(socket=client, id=self.next_id, panel=self, name='')
+        GlobalVariables.lock.acquire()
 
-        self.next_id += 1
+        user = User(
+            socket=client, id=GlobalVariables.next_id,
+            panel=self, name=''
+        )
+        self.user = user
+
+        GlobalVariables.next_id += 1
+
         self._add_user(user)
+
+        GlobalVariables.lock.release()
 
         while True:
             try:
+                user.send_message(State.state_string(self.current_state))
                 message = client.recv(2048)
                 print("message received", message)
                 if message:
@@ -248,17 +275,32 @@ class SarPanel(BaseHandler):
                 self.remove_user(user)
 
     def remove_user(self, user):
-        users.remove(user)
+        GlobalVariables.users.remove(user)
 
     def back(self, **kwargs):
-        pass
+        self.current_state = State.prev(self.current_state)
 
     def status(self, **kwargs):
         user = self._get_user(kwargs.get('my_id'))
-        pass
+        user.send_message(State.state_string(self.current_state))
 
-    def select(self, user_id, **kwargs):
-        pass
+    def select(self, item_id, **kwargs):
+        user = self._get_user(kwargs.get("my_id"))
+
+        if self.current_state == State.MAIN_MENU:
+            if item_id == 1:
+                self.current_state = State.EXTERNAL_SERVERS
+            elif item_id == 2:
+                self.current_state = State.ADMIN_ASK_PASSWORD
+            else:
+                user.send_message("Wrong number!")
+        elif self.current_state == State.EXTERNAL_SERVERS:
+            if item_id == 1:
+                pass
+            elif item_id == 2:
+                pass
+            else:
+                user.send_message("Wrong number!")
 
     def set_firewall_kind(self, firewall_kind, **kwargs):
         pass
@@ -269,15 +311,24 @@ class SarPanel(BaseHandler):
     def close_port(self, port_number, **kwargs):
         pass
 
-    def set_password(self, password, **kwargs):
-        pass
+    def password(self, password, **kwargs):
+        user = self._get_user(kwargs.get('my_id'))
+
+        if self.current_state == State.INIT:
+            user = self._get_user(kwargs.get('my_id'))
+            GlobalVariables.admin_password = password
+            user.password = password
+            self.current_state = State.MAIN_MENU
+        elif self.current_state == State.ADMIN_ASK_PASSWORD:
+            if password == GlobalVariables.admin_password:
+                user.role = ROLES_DICT[RoleNames.ADMIN]
+                self.current_state = State.ADMIN_MENU
+            else:
+                user.send_message("Wrong password!")
 
     def inform_all(self, message, ignore_list=None):
         if not ignore_list:
             ignore_list = []
-        for user in users:
+        for user in GlobalVariables.users:
             if user.id not in ignore_list:
                 user.send_message(message)
-
-
-sar_panel = SarPanel()

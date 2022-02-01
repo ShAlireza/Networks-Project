@@ -1,8 +1,8 @@
 from api.server import SarServer
 
 if __name__ == '__main__':
-    from api.panel import sar_panel
+    from api.panel import SarPanel
 
-    server = SarServer(handler=sar_panel)
+    server = SarServer(handler_class=SarPanel)
 
     server.start()

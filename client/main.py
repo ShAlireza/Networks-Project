@@ -36,6 +36,6 @@ class Client:
                 break
 
 
-client = Client(server_host=sys.argv[1], server_port=sys.argv[2])
+client = Client(server_host=sys.argv[1], server_port=int(sys.argv[2]))
 
 client.start()

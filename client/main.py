@@ -16,6 +16,7 @@ class Client:
         while True:
             command = input()
             if command == 'exit':
+                self.socket.close()
                 break
             self.socket.sendall(command.encode())
             # response = self.socket.recv(2048)

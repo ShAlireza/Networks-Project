@@ -4,10 +4,19 @@ import re
 from typing import List, Callable
 
 from .server import BaseHandler
+from transporter.transporter import Transporter
+from firewall.firewall import sar_firewall
+
+from config import (
+    CHOGHONDAR_IP,
+    CHOGHONDAR_PORT,
+    SHALGHAM_IP,
+    SHALGHAM_PORT
+)
 
 
 class State:
-    INIT = "INIT", "Init Connection"
+    INIT = "INIT", "Init Connection, Please enter admin password"
     MAIN_MENU = ("MAIN_MENU",
                  "1) Connect to external servers\n2) Login as admin")
     EXTERNAL_SERVERS = ("EXTERNAL_SERVERS",
@@ -30,7 +39,7 @@ class State:
 
     @staticmethod
     def state_string(state):
-        return f"\t\t{state[0]}\n\n{state[1]}"
+        return f"\n\n**********\t{state[0]}\t**********\n{state[1]}"
 
 
 class RoleNames:
@@ -73,7 +82,7 @@ SELECT = Action(
     pattern=r'select (?P<item_number>\d+)',
     handler=lambda item_number, panel, **kwargs: panel.select(
         item_number, **kwargs),
-    valid_states=[State.ADMIN_MENU, State.EXTERNAL_SERVERS]
+    valid_states=[State.MAIN_MENU, State.EXTERNAL_SERVERS]
 )
 
 SET_FIREWALL_KIND = Action(
@@ -84,16 +93,22 @@ SET_FIREWALL_KIND = Action(
 )
 
 OPEN_PORT = Action(
-    pattern=r'open port (?P<port_number>\d+)',
-    handler=lambda port_number, panel, **kwargs: panel.open_port(
-        port_number, **kwargs),
+    pattern=r'open port (?P<src_ip>.+) (?P<src_port>\d+) '
+    r'(?P<des_ip>.+) (?P<des_port>\d+)',
+    handler=lambda src_ip, src_port, des_ip, des_port, panel, **kwargs:
+    panel.open_port(
+        src_ip, src_port, des_ip, des_port, **kwargs
+    ),
     valid_states=[State.ADMIN_MENU]
 )
 
 CLOSE_PORT = Action(
-    pattern=r'close port (?P<port_number>\d+)',
-    handler=lambda port_number, panel, **kwargs: panel.close_port(
-        port_number, **kwargs),
+    pattern=r'close port (?P<src_ip>[0-9.]+) (?P<src_port>\d+) '
+    r'(?P<des_ip>[0-9.]+) (?P<des_port>\d+)',
+    handler=lambda src_ip, src_port, des_ip, des_port, panel, **kwargs:
+    panel.close_port(
+        src_ip, src_port, des_ip, des_port, **kwargs
+    ),
     valid_states=[State.ADMIN_MENU]
 )
 
@@ -113,6 +128,12 @@ PASSWORD = Action(
     valid_states=[State.INIT, State.ADMIN_ASK_PASSWORD]
 )
 
+FIREWALL_STATUS = Action(
+    pattern=r'firewall status',
+    handler=lambda panel, **kwargs: panel.firewall_status(**kwargs),
+    valid_states=[State.ADMIN_MENU]
+)
+
 
 class Role:
 
@@ -125,7 +146,8 @@ ADMIN = Role(
     name=RoleNames.ADMIN,
     actions=[
         STATUS, BACK, SELECT, PASSWORD,
-        SET_FIREWALL_KIND, OPEN_PORT, CLOSE_PORT
+        SET_FIREWALL_KIND, OPEN_PORT, CLOSE_PORT,
+        FIREWALL_STATUS
     ]
 )
 
@@ -261,6 +283,7 @@ class SarPanel(BaseHandler):
         while True:
             try:
                 user.send_message(State.state_string(self.current_state))
+                print(self.user.socket.getpeername())
                 message = client.recv(2048)
                 print("message received", message)
                 if message:
@@ -278,6 +301,10 @@ class SarPanel(BaseHandler):
         GlobalVariables.users.remove(user)
 
     def back(self, **kwargs):
+        user = self._get_user(kwargs.get('my_id'))
+        if self.current_state == State.ADMIN_MENU:
+            user.role = ROLES_DICT[RoleNames.NORMAL]
+
         self.current_state = State.prev(self.current_state)
 
     def status(self, **kwargs):
@@ -286,6 +313,7 @@ class SarPanel(BaseHandler):
 
     def select(self, item_id, **kwargs):
         user = self._get_user(kwargs.get("my_id"))
+        item_id = int(item_id)
 
         if self.current_state == State.MAIN_MENU:
             if item_id == 1:
@@ -296,20 +324,48 @@ class SarPanel(BaseHandler):
                 user.send_message("Wrong number!")
         elif self.current_state == State.EXTERNAL_SERVERS:
             if item_id == 1:
-                pass
+                transporter = Transporter(
+                    src_socket=user.socket,
+                    des_ip=SHALGHAM_IP,
+                    des_port=SHALGHAM_PORT,
+                    firewall=sar_firewall
+                )
+                transporter.start()
             elif item_id == 2:
-                pass
+                transporter = Transporter(
+                    src_socket=user.socket,
+                    des_ip=CHOGHONDAR_IP,
+                    des_port=CHOGHONDAR_PORT,
+                    firewall=sar_firewall
+                )
+                transporter.start()
             else:
                 user.send_message("Wrong number!")
 
     def set_firewall_kind(self, firewall_kind, **kwargs):
-        pass
+        sar_firewall.set_kind(firewall_kind)
 
-    def open_port(self, port_number, **kwargs):
-        pass
+    def firewall_status(self, **kwargs):
+        user = self._get_user(kwargs.get('my_id'))
+        user.send_message(sar_firewall.status())
 
-    def close_port(self, port_number, **kwargs):
-        pass
+    def open_port(self, src_ip, src_port, des_ip, des_port, **kwargs):
+        print("open", src_ip, src_port, des_ip, des_port)
+        sar_firewall.open_port(
+            src_ip=src_ip,
+            src_port=src_port,
+            des_ip=des_ip,
+            des_port=des_port
+        )
+
+    def close_port(self, src_ip, src_port, des_ip, des_port, **kwargs):
+        print("close", src_ip, src_port, des_ip, des_port)
+        sar_firewall.close_port(
+            src_ip=src_ip,
+            src_port=src_port,
+            des_ip=des_ip,
+            des_port=des_port
+        )
 
     def password(self, password, **kwargs):
         user = self._get_user(kwargs.get('my_id'))

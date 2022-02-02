@@ -39,6 +39,6 @@ class SarServer:
                 self.handler_class()
 
             thread = threading.Thread(
-                target=self.handler.handle, args=(client,)
+                target=handler.handle, args=(client,)
             )
             thread.start()

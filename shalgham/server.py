@@ -70,7 +70,12 @@ def handle_chat(c, user, other_user):
             c.send(chats_text.encode())
         else:
             user_chat.add_message(message, user)
+            users.get(user).chats.remove(user_chat)
+            users.get(user).chats.insert(0, user_chat)
+
             other_user_chat.add_message(message, user)
+            users.get(other_user).chats.remove(other_user_chat)
+            users.get(other_user).chats.insert(0, other_user_chat)
 
 def handle_inbox(c, user):
     list_of_chats = [i.other_user for i in user.chats]

@@ -6,7 +6,14 @@ import threading
 def handle_receive_message():
     while True:
         data = s.recv(1024)
-        print(str(data.decode('ascii')))
+        message = str(data.decode('ascii'))
+        if(len(message.split('///')) > 2 and message.split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
+            s.send(message.encode('ascii'))
+        elif(len(message.split('///')) > 1 and message.split('///')[0] == 'SHOW_ONLINE_MESSAGE'):
+            print(''.join(i for i in message.split('///')[1:]))
+        else:
+            print(message)
+        
  
 def handle_send_message():
     while True:

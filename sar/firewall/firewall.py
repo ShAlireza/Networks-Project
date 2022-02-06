@@ -52,7 +52,9 @@ class Firewall:
             source_ip=source_ip
         )
 
-        return rule.apply(data)
+        if rule:
+            return rule.apply(data)
+        return data
 
     def open_port(self, src_ip, src_port, des_ip, des_port):
         rule = FirewallRule(

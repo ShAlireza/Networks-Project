@@ -52,6 +52,7 @@ class Transporter:
         self.des_ip = des_ip
         self.des_port = des_port
         self.des_socket = None
+        self.firewall = firewall
 
     def start(self):
         t_client = TransporterClient(

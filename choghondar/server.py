@@ -172,7 +172,7 @@ def handle_login(c):
 users = {}
 online_users = {}
 host = ""
-port = 12345
+port = 9090
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((host, port))
 print("socket binded to port", port)

@@ -25,9 +25,14 @@ class Client:
     def read(self):
         while True:
             try:
-                message = self.socket.recv(2048)
+                message = self.socket.recv(2048).decode()
                 if message:
-                    print(message.decode())
+                    if(len(message.split('///')) > 2 and message.split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
+                        self.socket.sendall(message.encode('ascii'))
+                    elif(len(message.split('///')) > 1 and message.split('///')[0] == 'SHOW_ONLINE_MESSAGE'):
+                        print(''.join(i for i in message.split('///')[1:]))
+                    else:
+                        print(message)
                     pass
                 else:
                     break

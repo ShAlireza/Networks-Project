@@ -23,6 +23,8 @@ class Client:
             if command == 'exit':
                 self.socket.close()
                 break
+            if command == 'back':
+                pass
             self.socket.sendall(command.encode())
             if not q.empty():
                 message = q.get()
@@ -36,6 +38,8 @@ class Client:
                 if message:
                     if(len(message.split('///')) > 2 and message.split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
                         self.socket.sendall(message.encode('ascii'))
+                    elif message == '##exit##':
+                        self.socket.sendall('##exit##'.encode())
                     elif(len(message.split('///')) > 1 and message.split('///')[0] == 'SHOW_ONLINE_MESSAGE'):
                         print(''.join(i for i in message.split('///')[1:]))
                     elif "video_at" in message:

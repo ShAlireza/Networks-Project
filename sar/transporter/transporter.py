@@ -21,14 +21,10 @@ class TransporterClient:
         thread = threading.Thread(target=self.read)
         thread.start()
         while True:
-            if not self.q.empty():
-                value = self.q.get()
-                print("Q Q:" + str(value))
-                if value == "End of transporter.":
-                    print("End of transporter.")
-                    self.socket.close()
-                    return
             data = self.src_socket.recv(2048)
+            if data.decode() == '##exit##':
+                self.socket.close()
+                return
             if self.firewall:
                 data = self.firewall.apply(
                     data=data,
@@ -48,7 +44,7 @@ class TransporterClient:
                         self.socket.sendall(self.where_to.encode())
                         continue
                     elif data.decode() == "##exit##":
-                        self.q.put("End of transporter.")
+                        self.src_socket.sendall("##exit##".encode())
                         return
                     self.src_socket.sendall(data)
                     pass

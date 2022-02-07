@@ -326,7 +326,8 @@ class SarPanel(BaseHandler):
         elif self.current_state == State.EXTERNAL_SERVERS:
             is_proxy = False
             where_to = None
-            is_proxy, where_to = self.get_proxy_parameters(flag, is_proxy, item_id, where_to)
+            is_proxy, where_to = self.get_proxy_parameters(
+                flag, is_proxy, item_id, where_to)
             if is_proxy:
                 transporter = Transporter(
                     src_socket=user.socket,
@@ -355,7 +356,6 @@ class SarPanel(BaseHandler):
                     firewall=sar_firewall
                 )
                 transporter.start()
-                user.send_message(State.state_string(self.current_state))
             else:
                 user.send_message("Wrong number!")
 

@@ -1,6 +1,11 @@
 import threading
 import socket
 import sys
+import queue
+
+from video_player import play_video
+
+q = queue.Queue()
 
 
 class Client:
@@ -19,8 +24,10 @@ class Client:
                 self.socket.close()
                 break
             self.socket.sendall(command.encode())
-            # response = self.socket.recv(2048)
-            # print(response)
+            if not q.empty():
+                message = q.get()
+                play_video(int(message.decode().split(" ")[1]))
+                self.socket.sendall("stop".encode())
 
     def read(self):
         while True:
@@ -31,6 +38,8 @@ class Client:
                         self.socket.sendall(message.encode('ascii'))
                     elif(len(message.split('///')) > 1 and message.split('///')[0] == 'SHOW_ONLINE_MESSAGE'):
                         print(''.join(i for i in message.split('///')[1:]))
+                    elif "video_at" in message.decode():
+                            q.put(message)
                     else:
                         print(message)
                     pass

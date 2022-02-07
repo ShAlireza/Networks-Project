@@ -72,6 +72,10 @@ def handle_chat(c, user, other_user):
     while True:
         data = c.recv(1024)
         message = str(data.decode('ascii'))
+        if(str(data.decode('ascii')) == '##exit##'):
+            c.send('##exit##'.encode())
+            c.close()
+            break
         if(len(message.split('///')) > 2 and message.split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
             if(message.split('///')[1] == other_user):
                 start_new_thread(handle_receive_online_chat, (c, message.split('///')[2], user_chat))
@@ -106,6 +110,10 @@ def handle_inbox(c, user):
     other_user_username = str(data.decode('ascii'))
 
     while not other_user_username in list_of_chats or other_user_username == '0':
+        if(str(data.decode('ascii')) == '##exit##'):
+            c.send('##exit##'.encode())
+            c.close()
+            break
         if(len(str(data.decode('ascii')).split('///')) > 1 and str(data.decode('ascii')).split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
             continue
         if(other_user_username == '0'):
@@ -121,9 +129,13 @@ def handle_login(c):
     while True:
         c.send('1. Sign Up\n2. Login\n3. Exit\n'.encode())
         data = c.recv(1024)
-        if(len(str(data.decode('ascii')).split('///')) > 1 and str(data.decode('ascii')).split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
+        if(str(data.decode('ascii')) == '##exit##'):
+            c.send('##exit##'.encode())
+            c.close()
+            break
+        elif(len(str(data.decode('ascii')).split('///')) > 1 and str(data.decode('ascii')).split('///')[0] == 'RECEIVE_ONLINE_MESSAGE'):
             continue
-        if str(data.decode('ascii')) == '1':
+        elif str(data.decode('ascii')) == '1':
             c.send('Please enter your username.'.encode())
 
             data = c.recv(1024)
@@ -164,6 +176,8 @@ def handle_login(c):
                 c.send('Incorrect username or password.\n'.encode())
                 continue
         elif str(data.decode('ascii')) == '3':
+            c.send('##exit##'.encode())
+            c.close()
             break
         else:
             c.send('Incorrect input.\n'.encode())

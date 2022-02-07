@@ -26,7 +26,7 @@ class Client:
             self.socket.sendall(command.encode())
             if not q.empty():
                 message = q.get()
-                play_video(int(message.decode().split(" ")[1]))
+                play_video(int(message.split(" ")[1]))
                 self.socket.sendall("stop".encode())
 
     def read(self):
@@ -38,8 +38,8 @@ class Client:
                         self.socket.sendall(message.encode('ascii'))
                     elif(len(message.split('///')) > 1 and message.split('///')[0] == 'SHOW_ONLINE_MESSAGE'):
                         print(''.join(i for i in message.split('///')[1:]))
-                    elif "video_at" in message.decode():
-                            q.put(message)
+                    elif "video_at" in message:
+                        q.put(message)
                     else:
                         print(message)
                     pass

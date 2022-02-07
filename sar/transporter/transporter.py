@@ -1,10 +1,13 @@
 import socket
 import threading
 
+import queue
+
 
 class TransporterClient:
     def __init__(self, src_socket: socket.socket,
                  server_host: str, server_port: int, firewall):
+        self.q = queue.Queue()
         self.src_socket = src_socket
         self.server_host = server_host
         self.server_port = server_port
@@ -16,6 +19,13 @@ class TransporterClient:
         thread = threading.Thread(target=self.read)
         thread.start()
         while True:
+            if not self.q.empty():
+                value = self.q.get()
+                print("Q Q:" + str(value))
+                if value == "End of transporter.":
+                    print("End of transporter.")
+                    self.socket.close()
+                    return
             data = self.src_socket.recv(2048)
             if self.firewall:
                 data = self.firewall.apply(
@@ -31,11 +41,11 @@ class TransporterClient:
             try:
                 data = self.socket.recv(2048)
                 if data:
-                    self.src_socket.sendall(data)
                     print(data.decode())
-                    if data == '##exit##':
-                        self.socket.close()
-                        break
+                    if data.decode() == "##exit##":
+                        self.q.put("End of transporter.")
+                        return
+                    self.src_socket.sendall(data)
                     pass
                 else:
                     break
@@ -47,7 +57,7 @@ class TransporterClient:
 class Transporter:
 
     def __init__(self, src_socket: socket.socket, des_port,
-                 des_ip='127.0.0.1', firewall=None):
+                 firewall, des_ip='127.0.0.1'):
         self.src_socket = src_socket
         self.des_ip = des_ip
         self.des_port = des_port

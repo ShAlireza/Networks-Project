@@ -11,7 +11,9 @@ from config import (
     CHOGHONDAR_IP,
     CHOGHONDAR_PORT,
     SHALGHAM_IP,
-    SHALGHAM_PORT
+    SHALGHAM_PORT,
+    PROXY_IP,
+    PROXY_PORT,
 )
 
 
@@ -79,9 +81,9 @@ BACK = Action(
 )
 
 SELECT = Action(
-    pattern=r'select (?P<item_number>\d+)',
-    handler=lambda item_number, panel, **kwargs: panel.select(
-        item_number, **kwargs),
+    pattern=r'select (?P<item_number>\d+)( -(?P<flag>\w))?',
+    handler=lambda item_number,  panel, flag=None, **kwargs: panel.select(
+        item_number, flag, **kwargs),
     valid_states=[State.MAIN_MENU, State.EXTERNAL_SERVERS]
 )
 
@@ -311,10 +313,9 @@ class SarPanel(BaseHandler):
         user = self._get_user(kwargs.get('my_id'))
         user.send_message(State.state_string(self.current_state))
 
-    def select(self, item_id, **kwargs):
+    def select(self, item_id, flag, **kwargs):
         user = self._get_user(kwargs.get("my_id"))
         item_id = int(item_id)
-
         if self.current_state == State.MAIN_MENU:
             if item_id == 1:
                 self.current_state = State.EXTERNAL_SERVERS
@@ -323,14 +324,29 @@ class SarPanel(BaseHandler):
             else:
                 user.send_message("Wrong number!")
         elif self.current_state == State.EXTERNAL_SERVERS:
-            if item_id == 1:
+            is_proxy = False
+            where_to = None
+            is_proxy, where_to = self.get_proxy_parameters(flag, is_proxy, item_id, where_to)
+            if is_proxy:
+                transporter = Transporter(
+                    src_socket=user.socket,
+                    des_ip=PROXY_IP,
+                    des_port=PROXY_PORT,
+                    firewall=sar_firewall,
+                    is_proxy=is_proxy,
+                    where_to=where_to,
+                )
+                transporter.start()
+                user.send_message(State.state_string(self.current_state))
+            elif item_id == 1:
                 transporter = Transporter(
                     src_socket=user.socket,
                     des_ip=SHALGHAM_IP,
                     des_port=SHALGHAM_PORT,
-                    firewall=sar_firewall
+                    firewall=sar_firewall,
                 )
                 transporter.start()
+                user.send_message(State.state_string(self.current_state))
             elif item_id == 2:
                 transporter = Transporter(
                     src_socket=user.socket,
@@ -339,8 +355,18 @@ class SarPanel(BaseHandler):
                     firewall=sar_firewall
                 )
                 transporter.start()
+                user.send_message(State.state_string(self.current_state))
             else:
                 user.send_message("Wrong number!")
+
+    def get_proxy_parameters(self, flag, is_proxy, item_id, where_to):
+        if flag == "p":
+            is_proxy = True
+            if item_id == 1:
+                where_to = "shalgham"
+            elif item_id == 2:
+                where_to = "choghondar"
+        return is_proxy, where_to
 
     def set_firewall_kind(self, firewall_kind, **kwargs):
         sar_firewall.set_kind(firewall_kind)
